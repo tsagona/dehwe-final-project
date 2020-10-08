@@ -34,22 +34,21 @@ object Main {
 
       rawDf.printSchema()
 
-      val parsedDs = rawDf.as[RawReview]
+      val rawDs = rawDf.as[RawReview]
 
-      val enrichedDs = parsedDs.mapPartitions(partition=> {
+      val enrichedDs = rawDs.mapPartitions(partitionOfRawReviews=> {
         val conf = HBaseConfiguration.create()
         conf.set("hbase.zookeeper.quorum", "XX.XXX.XXX.XXX")
         val connection = ConnectionFactory.createConnection(conf)
         val table = connection.getTable(TableName.valueOf("tim:users"))
 
-        val newPartition = partition.map(rawReview => {
+        val partitionOfEnrichedReviews = partitionOfRawReviews.map(rawReview => {
           val get = new Get(Bytes.toBytes(rawReview.customerId.toString)).addFamily(Bytes.toBytes("f1"))
           val result = table.get(get)
           val reputation = Bytes.toInt(result.getValue(Bytes.toBytes("f1"), Bytes.toBytes("reputation")))
           EnrichedReview(rawReview.customerId, rawReview.customerName, rawReview.stars, reputation)
         })
-
-        newPartition.toIterator
+        partitionOfEnrichedReviews
       })
 
       val query = enrichedDs.writeStream
